@@ -7,37 +7,37 @@ require_once __DIR__ . '/../includes/helpers.php';
 require_login();
 
 $pdo = get_pdo();
-$userId = current_user_id();
+$username = current_username();
 
-function fetch_latest_row(PDO $pdo, int $userId, string $metric): ?array {
+function fetch_latest_row(PDO $pdo, string $username, string $metric): ?array {
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $stmt = $pdo->prepare('SELECT systolic, diastolic, pulse, recorded_at FROM blood_pressure_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare('SELECT systolic_bp, diastolic_bp, record_datetime FROM health_data WHERE username = ? AND systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL ORDER BY record_datetime DESC LIMIT 1');
+        $stmt->execute([$username]);
         return $stmt->fetch() ?: null;
     }
     if ($metric === METRIC_BLOOD_SUGAR) {
-        $stmt = $pdo->prepare('SELECT value, recorded_at FROM blood_sugar_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare('SELECT blood_sugar, record_datetime FROM health_data WHERE username = ? AND blood_sugar IS NOT NULL ORDER BY record_datetime DESC LIMIT 1');
+        $stmt->execute([$username]);
         return $stmt->fetch() ?: null;
     }
     if ($metric === METRIC_HEART_RATE) {
-        $stmt = $pdo->prepare('SELECT value, recorded_at FROM heart_rate_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare('SELECT heart_rate, record_datetime FROM health_data WHERE username = ? AND heart_rate IS NOT NULL ORDER BY record_datetime DESC LIMIT 1');
+        $stmt->execute([$username]);
         return $stmt->fetch() ?: null;
     }
     return null;
 }
 
 $latest = [
-    METRIC_BLOOD_PRESSURE => fetch_latest_row($pdo, $userId, METRIC_BLOOD_PRESSURE),
-    METRIC_BLOOD_SUGAR => fetch_latest_row($pdo, $userId, METRIC_BLOOD_SUGAR),
-    METRIC_HEART_RATE => fetch_latest_row($pdo, $userId, METRIC_HEART_RATE),
+    METRIC_BLOOD_PRESSURE => fetch_latest_row($pdo, $username, METRIC_BLOOD_PRESSURE),
+    METRIC_BLOOD_SUGAR => fetch_latest_row($pdo, $username, METRIC_BLOOD_SUGAR),
+    METRIC_HEART_RATE => fetch_latest_row($pdo, $username, METRIC_HEART_RATE),
 ];
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
-<h1>您好，<?php echo e((string)($_SESSION['user_name'] ?? '')); ?>！</h1>
+<h1>您好，<?php echo e((string)($_SESSION['full_name'] ?: $_SESSION['username'])); ?>！</h1>
 <p class="muted">在此紀錄與追蹤您的健康數據</p>
 
 <div class="grid">
@@ -64,18 +64,18 @@ include __DIR__ . '/../includes/header.php';
                 <?php if ($metric === METRIC_BLOOD_PRESSURE): ?>
                     <p class="value">
                         <?php if ($row): ?>
-                            <?php echo e((string)$row['systolic']); ?>/<?php echo e((string)$row['diastolic']); ?><?php if (!empty($row['pulse'])): ?>，脈搏 <?php echo e((string)$row['pulse']); ?><?php endif; ?>
+                            <?php echo e((string)$row['systolic_bp']); ?>/<?php echo e((string)$row['diastolic_bp']); ?>
                         <?php else: ?>
                             尚無紀錄
                         <?php endif; ?>
                     </p>
                 <?php else: ?>
                     <p class="value">
-                        <?php echo $row ? e((string)$row['value']) : '尚無紀錄'; ?>
+                        <?php echo $row ? e((string)($metric===METRIC_BLOOD_SUGAR?$row['blood_sugar']:$row['heart_rate'])) : '尚無紀錄'; ?>
                     </p>
                 <?php endif; ?>
                 <p class="muted small">
-                    <?php echo $row ? e(date('Y-m-d H:i', strtotime((string)$row['recorded_at']))) : ''; ?>
+                    <?php echo $row ? e(date('Y-m-d H:i', strtotime((string)$row['record_datetime']))) : ''; ?>
                 </p>
             </div>
             <footer class="card-footer">

@@ -12,26 +12,26 @@ $errors = [];
 $registered = isset($_GET['registered']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = strtolower(trim((string)($_POST['email'] ?? '')));
+    $username = trim((string)($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     $csrf = (string)($_POST['csrf_token'] ?? '');
 
     if (!verify_csrf($csrf)) {
         $errors[] = 'CSRF 驗證失敗，請重新嘗試。';
     }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = '請輸入有效的 Email。';
+    if ($username === '') {
+        $errors[] = '請輸入帳號。';
     }
     if (!$errors) {
         $pdo = get_pdo();
-        $stmt = $pdo->prepare('SELECT id, password_hash, name FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
+        $stmt = $pdo->prepare('SELECT username, password, full_name FROM users WHERE username = ? LIMIT 1');
+        $stmt->execute([$username]);
         $user = $stmt->fetch();
-        if (!$user || !password_verify($password, (string)$user['password_hash'])) {
-            $errors[] = 'Email 或密碼錯誤。';
+        if (!$user || !password_verify($password, (string)$user['password'])) {
+            $errors[] = '帳號或密碼錯誤。';
         } else {
-            $_SESSION['user_id'] = (int)$user['id'];
-            $_SESSION['user_name'] = (string)$user['name'];
+            $_SESSION['username'] = (string)$user['username'];
+            $_SESSION['full_name'] = (string)($user['full_name'] ?? '');
             redirect('/health-platform/public/index.php');
         }
     }
@@ -58,8 +58,8 @@ include __DIR__ . '/../includes/header.php';
 
 <form method="post" class="card form">
     <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>" />
-    <label>Email
-        <input type="email" name="email" value="<?php echo e($_POST['email'] ?? ''); ?>" required />
+    <label>帳號 (username)
+        <input type="text" name="username" value="<?php echo e($_POST['username'] ?? ''); ?>" required />
     </label>
     <label>密碼
         <input type="password" name="password" required />

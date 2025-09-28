@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/helpers.php';
 require_login();
 
 $pdo = get_pdo();
-$userId = current_user_id();
+$username = current_username();
 
 $metric = (string)($_GET['metric'] ?? '');
 if (!validate_metric($metric)) {
@@ -16,81 +16,70 @@ if (!validate_metric($metric)) {
 
 $action = (string)($_GET['action'] ?? '');
 
-function fetch_records(PDO $pdo, int $userId, string $metric): array
+function fetch_records(PDO $pdo, string $username, string $metric): array
 {
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $stmt = $pdo->prepare('SELECT id, systolic, diastolic, pulse, recorded_at FROM blood_pressure_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 100');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare('SELECT record_id, systolic_bp, diastolic_bp, record_datetime FROM health_data WHERE username = ? AND systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL ORDER BY record_datetime DESC LIMIT 200');
+        $stmt->execute([$username]);
         return $stmt->fetchAll();
     }
     if ($metric === METRIC_BLOOD_SUGAR) {
-        $stmt = $pdo->prepare('SELECT id, value, recorded_at FROM blood_sugar_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 100');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare('SELECT record_id, blood_sugar, record_datetime FROM health_data WHERE username = ? AND blood_sugar IS NOT NULL ORDER BY record_datetime DESC LIMIT 200');
+        $stmt->execute([$username]);
         return $stmt->fetchAll();
     }
     if ($metric === METRIC_HEART_RATE) {
-        $stmt = $pdo->prepare('SELECT id, value, recorded_at FROM heart_rate_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 100');
-        $stmt->execute([$userId]);
+        $stmt = $pdo->prepare('SELECT record_id, heart_rate, record_datetime FROM health_data WHERE username = ? AND heart_rate IS NOT NULL ORDER BY record_datetime DESC LIMIT 200');
+        $stmt->execute([$username]);
         return $stmt->fetchAll();
     }
     return [];
 }
 
-function insert_record(PDO $pdo, int $userId, string $metric, array $data): void
+function insert_record(PDO $pdo, string $username, string $metric, array $data): void
 {
+    $dt = $data['record_datetime'] ?? $data['recorded_at'] ?? null;
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $stmt = $pdo->prepare('INSERT INTO blood_pressure_records (user_id, systolic, diastolic, pulse, recorded_at) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$userId, (int)$data['systolic'], (int)$data['diastolic'], $data['pulse'] !== '' ? (int)$data['pulse'] : null, $data['recorded_at']]);
+        $stmt = $pdo->prepare('INSERT INTO health_data (username, record_datetime, systolic_bp, diastolic_bp) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$username, $dt, (int)$data['systolic_bp'], (int)$data['diastolic_bp']]);
         return;
     }
     if ($metric === METRIC_BLOOD_SUGAR) {
-        $stmt = $pdo->prepare('INSERT INTO blood_sugar_records (user_id, value, recorded_at) VALUES (?, ?, ?)');
-        $stmt->execute([$userId, (float)$data['value'], $data['recorded_at']]);
+        $stmt = $pdo->prepare('INSERT INTO health_data (username, record_datetime, blood_sugar) VALUES (?, ?, ?)');
+        $stmt->execute([$username, $dt, (float)$data['blood_sugar']]);
         return;
     }
     if ($metric === METRIC_HEART_RATE) {
-        $stmt = $pdo->prepare('INSERT INTO heart_rate_records (user_id, value, recorded_at) VALUES (?, ?, ?)');
-        $stmt->execute([$userId, (int)$data['value'], $data['recorded_at']]);
+        $stmt = $pdo->prepare('INSERT INTO health_data (username, record_datetime, heart_rate) VALUES (?, ?, ?)');
+        $stmt->execute([$username, $dt, (int)$data['heart_rate']]);
         return;
     }
 }
 
-function update_record(PDO $pdo, int $userId, string $metric, int $id, array $data): void
+function update_record(PDO $pdo, string $username, string $metric, int $id, array $data): void
 {
+    $dt = $data['record_datetime'] ?? $data['recorded_at'] ?? null;
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $stmt = $pdo->prepare('UPDATE blood_pressure_records SET systolic = ?, diastolic = ?, pulse = ?, recorded_at = ? WHERE id = ? AND user_id = ?');
-        $stmt->execute([(int)$data['systolic'], (int)$data['diastolic'], $data['pulse'] !== '' ? (int)$data['pulse'] : null, $data['recorded_at'], $id, $userId]);
+        $stmt = $pdo->prepare('UPDATE health_data SET systolic_bp = ?, diastolic_bp = ?, record_datetime = ? WHERE record_id = ? AND username = ?');
+        $stmt->execute([(int)$data['systolic_bp'], (int)$data['diastolic_bp'], $dt, $id, $username]);
         return;
     }
     if ($metric === METRIC_BLOOD_SUGAR) {
-        $stmt = $pdo->prepare('UPDATE blood_sugar_records SET value = ?, recorded_at = ? WHERE id = ? AND user_id = ?');
-        $stmt->execute([(float)$data['value'], $data['recorded_at'], $id, $userId]);
+        $stmt = $pdo->prepare('UPDATE health_data SET blood_sugar = ?, record_datetime = ? WHERE record_id = ? AND username = ?');
+        $stmt->execute([(float)$data['blood_sugar'], $dt, $id, $username]);
         return;
     }
     if ($metric === METRIC_HEART_RATE) {
-        $stmt = $pdo->prepare('UPDATE heart_rate_records SET value = ?, recorded_at = ? WHERE id = ? AND user_id = ?');
-        $stmt->execute([(int)$data['value'], $data['recorded_at'], $id, $userId]);
+        $stmt = $pdo->prepare('UPDATE health_data SET heart_rate = ?, record_datetime = ? WHERE record_id = ? AND username = ?');
+        $stmt->execute([(int)$data['heart_rate'], $dt, $id, $username]);
         return;
     }
 }
 
-function delete_record(PDO $pdo, int $userId, string $metric, int $id): void
+function delete_record(PDO $pdo, string $username, string $metric, int $id): void
 {
-    if ($metric === METRIC_BLOOD_PRESSURE) {
-        $stmt = $pdo->prepare('DELETE FROM blood_pressure_records WHERE id = ? AND user_id = ?');
-        $stmt->execute([$id, $userId]);
-        return;
-    }
-    if ($metric === METRIC_BLOOD_SUGAR) {
-        $stmt = $pdo->prepare('DELETE FROM blood_sugar_records WHERE id = ? AND user_id = ?');
-        $stmt->execute([$id, $userId]);
-        return;
-    }
-    if ($metric === METRIC_HEART_RATE) {
-        $stmt = $pdo->prepare('DELETE FROM heart_rate_records WHERE id = ? AND user_id = ?');
-        $stmt->execute([$id, $userId]);
-        return;
-    }
+    $stmt = $pdo->prepare('DELETE FROM health_data WHERE record_id = ? AND username = ?');
+    $stmt->execute([$id, $username]);
 }
 
 $errors = [];
@@ -102,20 +91,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $formAction = (string)($_POST['form_action'] ?? '');
         if ($formAction === 'create') {
             $data = $_POST;
-            insert_record($pdo, $userId, $metric, $data);
+            insert_record($pdo, $username, $metric, $data);
         } elseif ($formAction === 'update') {
             $id = (int)($_POST['id'] ?? 0);
             $data = $_POST;
-            update_record($pdo, $userId, $metric, $id, $data);
+            update_record($pdo, $username, $metric, $id, $data);
         } elseif ($formAction === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
-            delete_record($pdo, $userId, $metric, $id);
+            delete_record($pdo, $username, $metric, $id);
         }
         redirect('/health-platform/public/metric.php?metric=' . urlencode($metric));
     }
 }
 
-$records = fetch_records($pdo, $userId, $metric);
+$records = fetch_records($pdo, $username, $metric);
 
 // Compute weekly averages (group by ISO week) and high/low counts
 $weekly = [];
@@ -125,7 +114,7 @@ foreach ($records as $r) {
     if ($class['status'] === 'high') $highCount++;
     if ($class['status'] === 'low') $lowCount++;
 
-    $ts = strtotime((string)$r['recorded_at']);
+    $ts = strtotime((string)$r['record_datetime']);
     $year = (int)date('o', $ts); // ISO year
     $week = (int)date('W', $ts); // ISO week number
     $key = $year . '-W' . str_pad((string)$week, 2, '0', STR_PAD_LEFT);
@@ -139,10 +128,10 @@ foreach ($records as $r) {
     }
     $weekly[$key]['count']++;
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $weekly[$key]['systolic_sum'] += (int)$r['systolic'];
-        $weekly[$key]['diastolic_sum'] += (int)$r['diastolic'];
+        $weekly[$key]['systolic_sum'] += (int)$r['systolic_bp'];
+        $weekly[$key]['diastolic_sum'] += (int)$r['diastolic_bp'];
     } else {
-        $weekly[$key]['value_sum'] += (float)$r['value'];
+        $weekly[$key]['value_sum'] += (float)($metric===METRIC_BLOOD_SUGAR?$r['blood_sugar']:$r['heart_rate']);
     }
 }
 
@@ -227,22 +216,19 @@ $pageTitle = $metric === METRIC_BLOOD_PRESSURE ? '血壓' : ($metric === METRIC_
             <?php if ($metric === METRIC_BLOOD_PRESSURE): ?>
                 <div class="row">
                     <label>上壓
-                        <input type="number" name="systolic" required />
+                        <input type="number" name="systolic_bp" required />
                     </label>
                     <label>下壓
-                        <input type="number" name="diastolic" required />
-                    </label>
-                    <label>脈搏
-                        <input type="number" name="pulse" />
+                        <input type="number" name="diastolic_bp" required />
                     </label>
                 </div>
             <?php else: ?>
                 <label>數值
-                    <input type="number" name="value" step="0.1" required />
+                    <input type="number" name="<?php echo $metric===METRIC_BLOOD_SUGAR?'blood_sugar':'heart_rate'; ?>" step="0.1" required />
                 </label>
             <?php endif; ?>
             <label>紀錄時間
-                <input type="datetime-local" name="recorded_at" value="<?php echo e(date('Y-m-d\TH:i')); ?>" required />
+                <input type="datetime-local" name="record_datetime" value="<?php echo e(date('Y-m-d\TH:i')); ?>" required />
             </label>
             <button class="btn" type="submit">新增</button>
         </form>
@@ -261,7 +247,6 @@ $pageTitle = $metric === METRIC_BLOOD_PRESSURE ? '血壓' : ($metric === METRIC_
                     <?php if ($metric === METRIC_BLOOD_PRESSURE): ?>
                         <th>上壓</th>
                         <th>下壓</th>
-                        <th>脈搏</th>
                     <?php else: ?>
                         <th>數值</th>
                     <?php endif; ?>
@@ -273,13 +258,12 @@ $pageTitle = $metric === METRIC_BLOOD_PRESSURE ? '血壓' : ($metric === METRIC_
                 <?php foreach ($records as $rec): ?>
                     <?php $status = get_threshold_status($metric, $rec); ?>
                     <tr>
-                        <td><?php echo e(date('Y-m-d H:i', strtotime((string)$rec['recorded_at']))); ?></td>
+                        <td><?php echo e(date('Y-m-d H:i', strtotime((string)$rec['record_datetime']))); ?></td>
                         <?php if ($metric === METRIC_BLOOD_PRESSURE): ?>
-                            <td><?php echo e((string)$rec['systolic']); ?></td>
-                            <td><?php echo e((string)$rec['diastolic']); ?></td>
-                            <td><?php echo e(isset($rec['pulse']) ? (string)$rec['pulse'] : ''); ?></td>
+                            <td><?php echo e((string)$rec['systolic_bp']); ?></td>
+                            <td><?php echo e((string)$rec['diastolic_bp']); ?></td>
                         <?php else: ?>
-                            <td><?php echo e((string)$rec['value']); ?></td>
+                            <td><?php echo e((string)($metric===METRIC_BLOOD_SUGAR?$rec['blood_sugar']:$rec['heart_rate'])); ?></td>
                         <?php endif; ?>
                         <td>
                             <span class="badge <?php echo e($status === 'high' ? 'status-high' : ($status === 'low' ? 'status-low' : 'status-normal')); ?>">
@@ -292,21 +276,20 @@ $pageTitle = $metric === METRIC_BLOOD_PRESSURE ? '血壓' : ($metric === METRIC_
                                 <form method="post" class="inline">
                                     <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>" />
                                     <input type="hidden" name="form_action" value="update" />
-                                    <input type="hidden" name="id" value="<?php echo e((string)$rec['id']); ?>" />
+                                    <input type="hidden" name="id" value="<?php echo e((string)$rec['record_id']); ?>" />
                                     <?php if ($metric === METRIC_BLOOD_PRESSURE): ?>
-                                        <input type="number" name="systolic" value="<?php echo e((string)$rec['systolic']); ?>" />
-                                        <input type="number" name="diastolic" value="<?php echo e((string)$rec['diastolic']); ?>" />
-                                        <input type="number" name="pulse" value="<?php echo e(isset($rec['pulse']) ? (string)$rec['pulse'] : ''); ?>" />
+                                        <input type="number" name="systolic_bp" value="<?php echo e((string)$rec['systolic_bp']); ?>" />
+                                        <input type="number" name="diastolic_bp" value="<?php echo e((string)$rec['diastolic_bp']); ?>" />
                                     <?php else: ?>
-                                        <input type="number" step="0.1" name="value" value="<?php echo e((string)$rec['value']); ?>" />
+                                        <input type="number" step="0.1" name="<?php echo $metric===METRIC_BLOOD_SUGAR?'blood_sugar':'heart_rate'; ?>" value="<?php echo e((string)($metric===METRIC_BLOOD_SUGAR?$rec['blood_sugar']:$rec['heart_rate'])); ?>" />
                                     <?php endif; ?>
-                                    <input type="datetime-local" name="recorded_at" value="<?php echo e(date('Y-m-d\TH:i', strtotime((string)$rec['recorded_at']))); ?>" />
+                                    <input type="datetime-local" name="record_datetime" value="<?php echo e(date('Y-m-d\TH:i', strtotime((string)$rec['record_datetime']))); ?>" />
                                     <button class="btn btn-small" type="submit">更新</button>
                                 </form>
                                 <form method="post" class="inline" onsubmit="return confirm('確定要刪除嗎？');">
                                     <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>" />
                                     <input type="hidden" name="form_action" value="delete" />
-                                    <input type="hidden" name="id" value="<?php echo e((string)$rec['id']); ?>" />
+                                    <input type="hidden" name="id" value="<?php echo e((string)$rec['record_id']); ?>" />
                                     <button class="btn btn-outline btn-small" type="submit">刪除</button>
                                 </form>
                             </details>
@@ -397,10 +380,10 @@ const weeklyAvg2 = <?php echo json_encode($weeklyAvg2); ?>;
 const normalRange = <?php echo json_encode(get_normal_range($metric)); ?>;
 
 function buildDatasets(metric, records) {
-    const labels = records.map(r => r.recorded_at).reverse();
+    const labels = records.map(r => r.record_datetime).reverse();
     if (metric === '<?php echo METRIC_BLOOD_PRESSURE; ?>') {
-        const systolic = records.map(r => Number(r.systolic)).reverse();
-        const diastolic = records.map(r => Number(r.diastolic)).reverse();
+        const systolic = records.map(r => Number(r.systolic_bp)).reverse();
+        const diastolic = records.map(r => Number(r.diastolic_bp)).reverse();
         return {
             labels,
             datasets: [
@@ -409,7 +392,7 @@ function buildDatasets(metric, records) {
             ]
         };
     }
-    const values = records.map(r => Number(r.value)).reverse();
+    const values = records.map(r => Number(metric === '<?php echo METRIC_BLOOD_SUGAR; ?>' ? r.blood_sugar : r.heart_rate)).reverse();
     return { labels, datasets: [{ label: metric === '<?php echo METRIC_BLOOD_SUGAR; ?>' ? '血糖' : '心率', data: values, borderColor: '#059669', backgroundColor: 'rgba(5,150,105,0.2)'}] };
 }
 

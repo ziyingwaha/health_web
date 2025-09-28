@@ -7,7 +7,7 @@ require_once __DIR__ . '/../config/db.php';
 
 function is_logged_in(): bool
 {
-    return !empty($_SESSION['user_id']);
+    return !empty($_SESSION['username']);
 }
 
 function require_login(): void
@@ -18,9 +18,9 @@ function require_login(): void
     }
 }
 
-function current_user_id(): ?int
+function current_username(): ?string
 {
-    return isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    return isset($_SESSION['username']) ? (string)$_SESSION['username'] : null;
 }
 
 function redirect(string $path): void
@@ -52,8 +52,8 @@ function validate_metric(string $metric): bool
 function get_threshold_status(string $metric, array $row): string
 {
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $sys = isset($row['systolic']) ? (int)$row['systolic'] : null;
-        $dia = isset($row['diastolic']) ? (int)$row['diastolic'] : null;
+        $sys = isset($row['systolic_bp']) ? (int)$row['systolic_bp'] : null;
+        $dia = isset($row['diastolic_bp']) ? (int)$row['diastolic_bp'] : null;
         if ($sys === null || $dia === null) {
             return 'normal';
         }
@@ -67,7 +67,7 @@ function get_threshold_status(string $metric, array $row): string
     }
 
     if ($metric === METRIC_BLOOD_SUGAR) {
-        $val = isset($row['value']) ? (float)$row['value'] : null;
+        $val = isset($row['blood_sugar']) ? (float)$row['blood_sugar'] : null;
         if ($val === null) {
             return 'normal';
         }
@@ -81,7 +81,7 @@ function get_threshold_status(string $metric, array $row): string
     }
 
     if ($metric === METRIC_HEART_RATE) {
-        $val = isset($row['value']) ? (int)$row['value'] : null;
+        $val = isset($row['heart_rate']) ? (int)$row['heart_rate'] : null;
         if ($val === null) {
             return 'normal';
         }
@@ -133,8 +133,8 @@ function classify_metric_detail(string $metric, array $row): array
     $result = ['status' => 'normal', 'level' => 'normal', 'label' => '正常', 'colorClass' => 'status-normal'];
 
     if ($metric === METRIC_BLOOD_PRESSURE) {
-        $sys = isset($row['systolic']) ? (int)$row['systolic'] : null;
-        $dia = isset($row['diastolic']) ? (int)$row['diastolic'] : null;
+        $sys = isset($row['systolic_bp']) ? (int)$row['systolic_bp'] : null;
+        $dia = isset($row['diastolic_bp']) ? (int)$row['diastolic_bp'] : null;
         if ($sys === null || $dia === null) {
             return $result;
         }
@@ -172,7 +172,7 @@ function classify_metric_detail(string $metric, array $row): array
     }
 
     if ($metric === METRIC_BLOOD_SUGAR) {
-        $val = isset($row['value']) ? (float)$row['value'] : null;
+        $val = isset($row['blood_sugar']) ? (float)$row['blood_sugar'] : null;
         if ($val === null) return $result;
         if ($val < 70) return ['status' => 'low', 'level' => 'severe', 'label' => '低血糖（嚴重）', 'colorClass' => 'status-severe'];
         if ($val <= 99) return $result;
@@ -181,7 +181,7 @@ function classify_metric_detail(string $metric, array $row): array
     }
 
     if ($metric === METRIC_HEART_RATE) {
-        $val = isset($row['value']) ? (int)$row['value'] : null;
+        $val = isset($row['heart_rate']) ? (int)$row['heart_rate'] : null;
         if ($val === null) return $result;
         if ($val < 50) return ['status' => 'low', 'level' => 'severe', 'label' => '低心率（嚴重）', 'colorClass' => 'status-severe'];
         if ($val <= 59) return ['status' => 'low', 'level' => 'mild', 'label' => '輕度低心率', 'colorClass' => 'status-mild'];
