@@ -24,6 +24,9 @@ h1 { margin: 16px 0; font-size: 24px; }
 .status-high { background: #fee2e2; color: var(--danger); border:1px solid #fecaca; }
 .status-low { background: #fffbeb; color: var(--low); border:1px solid #fde68a; }
 .status-normal { background: #ecfdf5; color: var(--ok); border:1px solid #a7f3d0; }
+.status-mild { background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
+.status-moderate { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+.status-severe { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
 .form label { display:block; margin:8px 0; }
 .form input { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:8px; }
 .row { display:flex; gap:8px; }

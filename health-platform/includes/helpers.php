@@ -124,5 +124,89 @@ function get_suggestions(string $metric, string $status): array
     return [];
 }
 
+/**
+ * Detailed classification with multi-level severity and labels per metric.
+ * Returns: [status: high|low|normal, level: severe|moderate|mild|normal, label: string, colorClass: string]
+ */
+function classify_metric_detail(string $metric, array $row): array
+{
+    $result = ['status' => 'normal', 'level' => 'normal', 'label' => '正常', 'colorClass' => 'status-normal'];
+
+    if ($metric === METRIC_BLOOD_PRESSURE) {
+        $sys = isset($row['systolic']) ? (int)$row['systolic'] : null;
+        $dia = isset($row['diastolic']) ? (int)$row['diastolic'] : null;
+        if ($sys === null || $dia === null) {
+            return $result;
+        }
+        // Determine category for systolic
+        $catSys = 'normal';
+        if ($sys < 90) $catSys = 'severe_low';
+        elseif ($sys <= 119) $catSys = 'normal';
+        elseif ($sys <= 129) $catSys = 'mild_high';
+        elseif ($sys <= 139) $catSys = 'moderate_high';
+        else $catSys = 'severe_high';
+
+        // Determine category for diastolic
+        $catDia = 'normal';
+        if ($dia < 60) $catDia = 'severe_low';
+        elseif ($dia <= 79) $catDia = 'normal';
+        elseif ($dia <= 89) $catDia = 'moderate_high'; // no mild for diastolic per table
+        else $catDia = 'severe_high';
+
+        // Pick worst severity among the two
+        $priority = ['severe_low' => 4, 'severe_high' => 4, 'moderate_high' => 3, 'mild_high' => 2, 'normal' => 1];
+        $picked = $priority[$catSys] >= $priority[$catDia] ? $catSys : $catDia;
+
+        switch ($picked) {
+            case 'severe_low':
+                return ['status' => 'low', 'level' => 'severe', 'label' => '低血壓（嚴重）', 'colorClass' => 'status-severe'];
+            case 'severe_high':
+                return ['status' => 'high', 'level' => 'severe', 'label' => '嚴重高血壓', 'colorClass' => 'status-severe'];
+            case 'moderate_high':
+                return ['status' => 'high', 'level' => 'moderate', 'label' => '中度高血壓', 'colorClass' => 'status-moderate'];
+            case 'mild_high':
+                return ['status' => 'high', 'level' => 'mild', 'label' => '輕度偏高', 'colorClass' => 'status-mild'];
+            default:
+                return $result;
+        }
+    }
+
+    if ($metric === METRIC_BLOOD_SUGAR) {
+        $val = isset($row['value']) ? (float)$row['value'] : null;
+        if ($val === null) return $result;
+        if ($val < 70) return ['status' => 'low', 'level' => 'severe', 'label' => '低血糖（嚴重）', 'colorClass' => 'status-severe'];
+        if ($val <= 99) return $result;
+        if ($val <= 125) return ['status' => 'high', 'level' => 'mild', 'label' => '輕度偏高', 'colorClass' => 'status-mild'];
+        return ['status' => 'high', 'level' => 'severe', 'label' => '嚴重高血糖', 'colorClass' => 'status-severe'];
+    }
+
+    if ($metric === METRIC_HEART_RATE) {
+        $val = isset($row['value']) ? (int)$row['value'] : null;
+        if ($val === null) return $result;
+        if ($val < 50) return ['status' => 'low', 'level' => 'severe', 'label' => '低心率（嚴重）', 'colorClass' => 'status-severe'];
+        if ($val <= 59) return ['status' => 'low', 'level' => 'mild', 'label' => '輕度低心率', 'colorClass' => 'status-mild'];
+        if ($val <= 100) return $result;
+        if ($val <= 110) return ['status' => 'high', 'level' => 'mild', 'label' => '輕度偏高', 'colorClass' => 'status-mild'];
+        if ($val <= 130) return ['status' => 'high', 'level' => 'moderate', 'label' => '中度偏高', 'colorClass' => 'status-moderate'];
+        return ['status' => 'high', 'level' => 'severe', 'label' => '嚴重偏高', 'colorClass' => 'status-severe'];
+    }
+
+    return $result;
+}
+
+function get_normal_range(string $metric): array
+{
+    if ($metric === METRIC_BLOOD_PRESSURE) {
+        return ['systolic' => [90, 119], 'diastolic' => [60, 79]];
+    }
+    if ($metric === METRIC_BLOOD_SUGAR) {
+        return ['value' => [70.0, 99.0]];
+    }
+    if ($metric === METRIC_HEART_RATE) {
+        return ['value' => [60, 100]];
+    }
+    return [];
+}
+
 ?>
 
